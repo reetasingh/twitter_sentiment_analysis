@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href="http://bl.ocks.org/bobmonteverde/raw/2070123/d3.css" rel="stylesheet" type="text/css">
+  <meta charset="UTF-8">
+  <title>Page Title</title>
+  <!-- Latest compiled and minified CSS -->
+  <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+  <!-- Optional theme -->
+  <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
+
+  <!-- APP js -->
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+  <!-- add d3 from web -->
+  <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+  <script src="http://bl.ocks.org/bobmonteverde/raw/2070123/nvtooltip.js"></script>
+  <script src="http://bl.ocks.org/bobmonteverde/raw/2070123/d3legend.js"></script> 
+  <script src="http://bl.ocks.org/bobmonteverde/raw/2070123/d3line.js"></script> 
+  <script src="http://bl.ocks.org/bobmonteverde/raw/2070123/d3linewithlegend.js"></script>
+  
+  <!-- D3 Word Cloud Implementation by Eric Coopey: http://bl.ocks.org/ericcoopey/6382449 -->
+</head>
+
+<style>
+body {
+  margin: 0;
+  background: #fff;
+  min-width: 960px;
+}
+
+rect {
+  fill: none;
+  pointer-events: all;
+}
+
+circle {
+  fill: none;
+  stroke-width: 2.5px;
+}
+
+
+</style>
+
+<body>
+    <div id="Amazon" >
+      <svg></svg>
+    </div>
+    <div id="Microsoft" >
+      <svg></svg>
+    </div>
+    <div id="Apple" >
+      <svg></svg>
+    </div>
+    <div id="Facebook" >
+      <svg></svg>
+    </div>
+    <div id="Google" >
+      <svg></svg>
+    </div>
+    <div id="SandP" >
+      <svg></svg>
+    </div>
+    <div id = "AmazonTweet" style="top: 600; 
+    left: 600; 
+    position:'absolute';
+    background-color: #FFF;
+    width: 600px;
+    height: 500px;
+    overflow: scroll;">
+    <ul></ul>
+    </div>
+    <div id = "MicrosoftTweet" style="top: 1200; 
+    left: 600; 
+    position:'absolute';
+    background-color: #FFF;
+    width: 600px;
+    height: 500px;
+    overflow: scroll;">
+    <ul></ul>
+    </div>
+    <div id = "AppleTweet" style="top: 1800; 
+    left: 600; 
+    position:'absolute';
+    background-color: #FFF;
+    width: 600px;
+    height: 500px;
+    overflow: scroll;">
+    <ul></ul>
+    </div>
+    <div id = "FacebookTweet" style="top: 2400; 
+    left: 600; 
+    position:'absolute';
+    background-color: #FFF;
+    width: 600px;
+    height: 500px;
+    overflow: scroll;">
+    <ul></ul>
+    </div>
+    <div id = "GoogleTweet" style="top: 3000; 
+    left: 600; 
+    position:'absolute';
+    background-color: #FFF;
+    width: 600px;
+    height: 500px;
+    overflow: scroll;">
+    <ul></ul>
+    </div>
+    <div id = "SandPTweet" style="top: 3600; 
+    left: 600; 
+    position:'absolute';
+    background-color: #FFF;
+    width: 600px;
+    height: 500px;
+    overflow: scroll;">
+    <ul></ul>
+    </div>
+</body>
+<script>
+var keys= ["Amazon","Microsoft","Apple","Facebook","Google","SandP"];
+for (var i = 0; i < keys.length; i++) {
+  $("#"+keys[i]+"Tweet").css({top: 600*i, left: 600, position:'absolute'});
+}
+var sourcestockvalue = new EventSource('/streamcompanystockvalue');
+  var sourcewordcount =new EventSource('/streamcompanywordcount');
+  var wordhash = {};
+  var pricehash ={};
+  var width = 1200;
+  var height = 700;
+  var newvar="hello";
+  //update hash (associative array) with incoming word and count
+  sourcestockvalue.onmessage = function (event) {
+    company = event.data.split("|")[0];
+    price = event.data.split("|")[1];
+    predictedprice = event.data.split("|")[2];
+    sentiment = event.data.split("|")[3];
+    if(isvalid(company)){
+      if(!pricehash[company]){
+        pricehash[company]={};
+      }
+      if(!pricehash[company]["value"]){
+        pricehash[company]["value"]=[];
+      }
+      if(!pricehash[company]["predictedvalue"]){
+        pricehash[company]["predictedvalue"]=[];
+      }
+      pricehash[company]["value"].push(price);
+      pricehash[company]["predictedvalue"].push(predictedprice);
+      pricehash[company]["sentiment"]=sentiment;
+    }
+  };
+  sourcewordcount.onmessage = function (event) {
+    company = event.data.split("|")[0];
+    tweet = event.data.split("|")[1];
+    if(isvalid(company)){
+      if(!wordhash[company]){
+        wordhash[company]=[];
+      }
+      wordhash[company].push(tweet);
+    }
+  };
+//update function for visualization
+
+
+//clean list, can be added to word skipping bolt
+  var isvalid=function(tWord){
+    for(var i=0; i<keys.length; i++){
+      if(tWord === keys[i]){
+        return true;
+      }
+    }
+    return false;
+  }
+currentindex={};
+for (var i = 0; i < 6; i++) {
+  currentindex[keys[i]]=0;
+}
+var updateViz =  function(){
+  //print console message
+  console.log("cloudArray-1" + JSON.stringify(d3.entries(wordhash)));
+  console.log("cloudArray-2" + JSON.stringify(d3.entries(pricehash)));
+  var hashkeys=Object.keys(wordhash);
+  for (var i = 0; i < hashkeys.length; i++) {
+    for (var j = currentindex[hashkeys[i]]; j < wordhash[hashkeys[i]].length; j++) {
+      var a= wordhash[hashkeys[i]][j];
+      $('#'+hashkeys[i]+'Tweet ul').append('<li>'+a+'</li>');
+    }
+    currentindex[hashkeys[i]]=wordhash[hashkeys[i]].length;
+  }
+  var graphkeys=Object.keys(pricehash);
+  $(function(){
+      $.each(new Array(6), function(i){
+        if(graphkeys[i]){
+          chart = d3LineWithLegend()
+                    .xAxis.label('Cost ($)')
+                    .width(600)
+                    .height(500)
+                    .yAxis.label('Time Period (min)');
+
+
+          var svg = d3.select('#'+graphkeys[i]+' svg')
+          .datum(generateData(graphkeys[i]))
+
+          svg.transition().duration(500)
+            .attr('width', 600)
+            .attr('height', 500)
+            .call(chart);
+
+            console.log("from for loop"+ graphkeys[i]);
+            var myvar=keys[i];
+          chart.dispatch.on('showTooltip', function(e) {
+              console.log("from tooltip"+graphkeys[i]);
+              var offset = $('#'+graphkeys[i]).offset(), // { left: 0, top: 0 }
+              left = e.pos[0] +offset.left ,
+              top = e.pos[1] +offset.top ,
+
+              formatter = d3.format(".04f");
+              console.log(offset+" "+left+" "+top);
+          var content = '<h3>' + e.series.label + '</h3>' +
+                        '<p>' +
+                        '<span class="value">[' + e.point[0] + ', ' + formatter(e.point[1]) + ']</span>' +
+                        '</p>';
+          
+          nvtooltip.show([left, top], content);
+           });
+
+          chart.dispatch.on('hideTooltip', function(e) {
+            nvtooltip.cleanup();
+          });
+
+
+
+          $("#"+graphkeys[i]).css({top: 600*i, left: 0, position:'absolute'});
+          $(window).resize(function() {
+            var margin = chart.margin();
+
+            chart
+            .width(600)
+            .height(500);
+
+            d3.select('#'+graphkeys[i]+' svg')
+            .attr('width', 600)
+            .attr('height', 500)
+            .call(chart);
+
+          });
+        }
+      });
+  });
+  
+  
+};
+
+// run updateViz at #7000 milliseconds, or 7 second
+window.setInterval(updateViz, 10000);
+function generateData(name) {
+    console.log(name)
+    var actualvalue=[];
+    var predictedvalue=[];
+    var temp1=pricehash[name]["value"];
+    var temp2=pricehash[name]["predictedvalue"];
+    for (var i = 0; i < temp1.length; i++) {
+      actualvalue.push([i,temp1[i]]);
+      predictedvalue.push([i,temp2[i]]);
+    }
+   return [
+      {
+        data: predictedvalue,
+        label: name+"Predicted stock Value"
+      },
+      {
+        data: actualvalue,
+        label: name+"Actual Stock Value"
+      }
+    ];
+  }
+
+</script>
+
+<div style="width: 40%;">
+  <div class="legend">
+  </div>
+
+</div>
+</html>
